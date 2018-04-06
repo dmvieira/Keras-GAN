@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 
-from keras.datasets import mnist
+from keras.preprocessing import image
 from keras.layers import Input, Dense, Reshape, Flatten, Dropout, multiply
 from keras.layers import BatchNormalization, Activation, Embedding, ZeroPadding2D
 from keras.layers.advanced_activations import LeakyReLU
@@ -10,15 +10,17 @@ from keras.optimizers import Adam
 
 import matplotlib.pyplot as plt
 
+import os
+
 import numpy as np
 
 class CGAN():
     def __init__(self):
-        self.img_rows = 28
-        self.img_cols = 28
-        self.channels = 1
+        self.img_rows = 1280
+        self.img_cols = 720
+        self.channels = 3
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
-        self.num_classes = 10
+        self.num_classes = 2
         self.latent_dim = 100
 
         optimizer = Adam(0.0002, 0.5)
@@ -108,15 +110,34 @@ class CGAN():
         validity = model(model_input)
 
         return Model([img, label], validity)
+    
+    def get_images(self):
+        X = list()
+        Y = list()
+        for img in os.listdir("cgan/bullet/"):
+            X.append(
+                image.img_to_array(
+                    image.load_img("cgan/bullet/" + img, target_size=(self.img_rows, self.img_cols))
+                ).reshape(*self.img_shape)
+            )
+            Y.append(1)
+        for img in os.listdir("cgan/other/"):
+            X.append(
+                image.img_to_array(
+                    image.load_img("cgan/other/" + img, target_size=(self.img_rows, self.img_cols))
+                ).reshape(*self.img_shape)
+            )
+            Y.append(0)
+        return np.array(X), np.array(Y)
+
+
 
     def train(self, epochs, batch_size=128, save_interval=50):
 
         # Load the dataset
-        (X_train, y_train), (_, _) = mnist.load_data()
-
+        X_train, y_train = self.get_images()
+        x_train = np.expand_dims(X_train, axis=3)
         # Rescale -1 to 1
-        X_train = (X_train.astype(np.float32) - 127.5) / 127.5
-        X_train = np.expand_dims(X_train, axis=3)
         y_train = y_train.reshape(-1, 1)
 
         half_batch = int(batch_size / 2)
@@ -128,8 +149,8 @@ class CGAN():
             # ---------------------
 
             # Select a random half batch of images
-            idx = np.random.randint(0, X_train.shape[0], half_batch)
-            imgs, labels = X_train[idx], y_train[idx]
+            idx = np.random.randint(0, x_train.shape[0], half_batch)
+            imgs, labels = x_train[idx], y_train[idx]
 
             noise = np.random.normal(0, 1, (half_batch, 100))
 
@@ -166,28 +187,19 @@ class CGAN():
                 self.save_imgs(epoch)
 
     def save_imgs(self, epoch):
-        r, c = 2, 5
+        r, c = 1, 1
         noise = np.random.normal(0, 1, (r * c, 100))
-        sampled_labels = np.arange(0, 10).reshape(-1, 1)
+        sampled_labels = np.arange(0, 2).reshape(-1, 1)
 
         gen_imgs = self.generator.predict([noise, sampled_labels])
 
-        # Rescale images 0 - 1
-        gen_imgs = 0.5 * gen_imgs + 0.5
-
         fig, axs = plt.subplots(r, c)
-        fig.suptitle("CGAN: Generated digits", fontsize=12)
-        cnt = 0
-        for i in range(r):
-            for j in range(c):
-                axs[i,j].imshow(gen_imgs[cnt,:,:,0], cmap='gray')
-                axs[i,j].set_title("Digit: %d" % sampled_labels[cnt])
-                axs[i,j].axis('off')
-                cnt += 1
+        axs[0,0].imshow(gen_imgs[1,:,:,0])
+        axs[0,0].axis('off')
         fig.savefig("cgan/images/%d.png" % epoch)
         plt.close()
 
 
 if __name__ == '__main__':
     cgan = CGAN()
-    cgan.train(epochs=10000, batch_size=32, save_interval=200)
+    cgan.train(epochs=1000, batch_size=32, save_interval=100)

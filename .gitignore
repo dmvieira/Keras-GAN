@@ -4,5 +4,7 @@
 *.h5
 *.hdf5
 .DS_Store
-
+bullet
+other
+Archive.zip
 __pycache__
